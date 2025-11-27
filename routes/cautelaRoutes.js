@@ -16,6 +16,45 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET - Buscar histórico de cautela (com todas as assinaturas) - DEVE VIR ANTES DE /:id
+router.get('/:id/historico', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = getConnection();
+    
+    console.log('Buscando histórico para ID:', id);
+    
+    // Buscar cautela
+    const [cautelas] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ? OR uuid = ?',
+      [id, id]
+    );
+    
+    if (cautelas.length === 0) {
+      return res.status(404).json({ error: 'Cautela não encontrada' });
+    }
+    
+    const cautela = cautelas[0];
+    
+    // Buscar todas as assinaturas relacionadas
+    const [assinaturas] = await connection.execute(
+      `SELECT * FROM assinaturas 
+       WHERE cautela_id = ? 
+       ORDER BY data_assinatura ASC`,
+      [cautela.id]
+    );
+    
+    res.json({
+      cautela,
+      assinaturas,
+      total_assinaturas: assinaturas.length
+    });
+  } catch (error) {
+    console.error('Erro ao buscar histórico:', error);
+    res.status(500).json({ error: 'Erro ao buscar histórico' });
+  }
+});
+
 // GET - Buscar cautela por ID ou UUID
 router.get('/:id', async (req, res) => {
   try {
@@ -112,15 +151,29 @@ router.post('/', async (req, res) => {
 router.post('/:id/descautelar', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Descautelar - ID recebido:', id);
+    
     const connection = getConnection();
     
-    // Buscar cautela
-    const [cautelas] = await connection.execute(
-      'SELECT * FROM cautelas WHERE id = ? OR uuid = ?',
-      [id, id]
+    // Buscar cautela - tentar primeiro por ID numérico, depois por UUID
+    let [cautelas] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ?',
+      [id]
     );
     
+    // Se não encontrou por ID, tentar por UUID
     if (cautelas.length === 0) {
+      console.log('Não encontrado por ID, tentando por UUID...');
+      [cautelas] = await connection.execute(
+        'SELECT * FROM cautelas WHERE uuid = ?',
+        [id]
+      );
+    }
+    
+    console.log('Cautelas encontradas:', cautelas.length);
+    
+    if (cautelas.length === 0) {
+      console.error('Cautela não encontrada para ID:', id);
       return res.status(404).json({ error: 'Cautela não encontrada' });
     }
     
@@ -171,42 +224,6 @@ router.post('/:id/descautelar', async (req, res) => {
   }
 });
 
-// GET - Buscar histórico de cautela (com todas as assinaturas)
-router.get('/:id/historico', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const connection = getConnection();
-    
-    // Buscar cautela
-    const [cautelas] = await connection.execute(
-      'SELECT * FROM cautelas WHERE id = ? OR uuid = ?',
-      [id, id]
-    );
-    
-    if (cautelas.length === 0) {
-      return res.status(404).json({ error: 'Cautela não encontrada' });
-    }
-    
-    const cautela = cautelas[0];
-    
-    // Buscar todas as assinaturas relacionadas
-    const [assinaturas] = await connection.execute(
-      `SELECT * FROM assinaturas 
-       WHERE cautela_id = ? 
-       ORDER BY data_assinatura ASC`,
-      [cautela.id]
-    );
-    
-    res.json({
-      cautela,
-      assinaturas,
-      total_assinaturas: assinaturas.length
-    });
-  } catch (error) {
-    console.error('Erro ao buscar histórico:', error);
-    res.status(500).json({ error: 'Erro ao buscar histórico' });
-  }
-});
 
 // PUT - Atualizar cautela
 router.put('/:id', async (req, res) => {
