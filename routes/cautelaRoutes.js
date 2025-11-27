@@ -206,14 +206,16 @@ router.post('/:id/descautelar', async (req, res) => {
     const novoUuid = uuidv4();
     const link_descautela = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/assinar/${novoUuid}`;
     
-    // Atualizar status para pendente e criar novo link
+    // Atualizar status para pendente, criar novo link E atualizar o UUID
     await connection.execute(
       `UPDATE cautelas 
        SET status = 'pendente',
+           uuid = ?,
            link_assinatura = ?,
-           data_devolucao = NULL
+           data_devolucao = NULL,
+           assinatura_base64 = NULL
        WHERE id = ?`,
-      [link_descautela, cautela.id]
+      [novoUuid, link_descautela, cautela.id]
     );
     
     // Buscar cautela atualizada
