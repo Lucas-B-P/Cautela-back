@@ -126,11 +126,26 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
     const tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
 
     // Criar assinatura
-    await connection.execute(
-      `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64) 
-       VALUES (?, ?, ?, ?, ?)`,
-      [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
-    );
+    // Verificar se a coluna tipo_assinatura existe
+    try {
+      await connection.execute(
+        `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
+      );
+    } catch (insertError) {
+      // Se a coluna não existir, tentar inserir sem ela (fallback)
+      if (insertError.code === 'ER_BAD_FIELD_ERROR' && insertError.message.includes('tipo_assinatura')) {
+        console.warn('Coluna tipo_assinatura não existe, inserindo sem ela...');
+        await connection.execute(
+          `INSERT INTO assinaturas (cautela_id, nome, cargo, assinatura_base64) 
+           VALUES (?, ?, ?, ?)`,
+          [cautela.id, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
+        );
+      } else {
+        throw insertError;
+      }
+    }
 
     // Atualizar status da cautela baseado no tipo de assinatura
     if (tipoAssinatura === 'descautela') {
