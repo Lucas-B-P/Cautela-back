@@ -60,28 +60,51 @@ router.post('/:uuid', async (req, res) => {
       return res.status(400).json({ error: 'Esta cautela já foi assinada ou cancelada' });
     }
 
+    // Determinar tipo de assinatura baseado no status atual
+    // Se já tem assinatura de cautela, esta é uma descautela
+    const [assinaturasExistentes] = await connection.execute(
+      'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
+      [cautela.id]
+    );
+    
+    const tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+
     // Criar assinatura
     const [result] = await connection.execute(
       `INSERT INTO assinaturas (
-        cautela_id, nome, cargo, assinatura_base64
-      ) VALUES (?, ?, ?, ?)`,
+        cautela_id, tipo_assinatura, nome, cargo, assinatura_base64
+      ) VALUES (?, ?, ?, ?, ?)`,
       [
         cautela.id,
+        tipoAssinatura,
         nome || cautela.responsavel_nome || 'Responsável',
         cargo || '',
         assinatura_base64
       ]
     );
 
-    // Atualizar status da cautela e adicionar assinatura
-    await connection.execute(
-      `UPDATE cautelas 
-       SET status = 'assinado', 
-           data_assinatura = NOW(),
-           assinatura_base64 = ?
-       WHERE id = ?`,
-      [assinatura_base64, cautela.id]
-    );
+    // Atualizar status da cautela
+    if (tipoAssinatura === 'descautela') {
+      // Se é descautela, marcar como devolvido
+      await connection.execute(
+        `UPDATE cautelas 
+         SET status = 'assinado', 
+             data_devolucao = NOW(),
+             assinatura_base64 = ?
+         WHERE id = ?`,
+        [assinatura_base64, cautela.id]
+      );
+    } else {
+      // Se é cautela inicial
+      await connection.execute(
+        `UPDATE cautelas 
+         SET status = 'assinado', 
+             data_assinatura = NOW(),
+             assinatura_base64 = ?
+         WHERE id = ?`,
+        [assinatura_base64, cautela.id]
+      );
+    }
 
     // Buscar cautela atualizada
     const [updatedCautela] = await connection.execute(

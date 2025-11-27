@@ -45,6 +45,7 @@ router.post('/', async (req, res) => {
     const { 
       material, 
       descricao, 
+      tipo_material,
       quantidade, 
       responsavel, 
       responsavel_nome, 
@@ -53,9 +54,15 @@ router.post('/', async (req, res) => {
       observacoes 
     } = req.body;
     
-    if (!material || !quantidade || !responsavel_nome || !responsavel_email) {
+    if (!material || !quantidade || !responsavel_nome || !responsavel_email || !tipo_material) {
       return res.status(400).json({ 
-        error: 'Campos obrigatórios: material, quantidade, responsavel_nome, responsavel_email' 
+        error: 'Campos obrigatórios: material, tipo_material, quantidade, responsavel_nome, responsavel_email' 
+      });
+    }
+
+    if (!['consumivel', 'permanente'].includes(tipo_material)) {
+      return res.status(400).json({ 
+        error: 'tipo_material deve ser "consumivel" ou "permanente"' 
       });
     }
 
@@ -67,14 +74,15 @@ router.post('/', async (req, res) => {
     
     const [result] = await connection.execute(
       `INSERT INTO cautelas (
-        uuid, material, descricao, quantidade, responsavel, 
+        uuid, material, descricao, tipo_material, quantidade, responsavel, 
         responsavel_nome, responsavel_email, data_retirada, 
         observacoes, status, link_assinatura
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
       [
         uuid,
         material, 
         descricao || null,
+        tipo_material,
         quantidade, 
         responsavel || responsavel_nome,
         responsavel_nome,
@@ -97,6 +105,106 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Erro ao criar cautela:', error);
     res.status(500).json({ error: 'Erro ao criar cautela' });
+  }
+});
+
+// POST - Descautelar (criar nova assinatura de devolução)
+router.post('/:id/descautelar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = getConnection();
+    
+    // Buscar cautela
+    const [cautelas] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ? OR uuid = ?',
+      [id, id]
+    );
+    
+    if (cautelas.length === 0) {
+      return res.status(404).json({ error: 'Cautela não encontrada' });
+    }
+    
+    const cautela = cautelas[0];
+    
+    // Verificar se é material permanente
+    if (cautela.tipo_material !== 'permanente') {
+      return res.status(400).json({ 
+        error: 'Apenas materiais permanentes podem ser descautelados' 
+      });
+    }
+    
+    // Verificar se está assinada
+    if (cautela.status !== 'assinado') {
+      return res.status(400).json({ 
+        error: 'A cautela precisa estar assinada para ser descautelada' 
+      });
+    }
+    
+    // Criar novo UUID para a descautela
+    const novoUuid = uuidv4();
+    const link_descautela = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/assinar/${novoUuid}`;
+    
+    // Atualizar status para pendente e criar novo link
+    await connection.execute(
+      `UPDATE cautelas 
+       SET status = 'pendente',
+           link_assinatura = ?,
+           data_devolucao = NULL
+       WHERE id = ?`,
+      [link_descautela, cautela.id]
+    );
+    
+    // Buscar cautela atualizada
+    const [updatedCautela] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ?',
+      [cautela.id]
+    );
+    
+    res.json({ 
+      ...updatedCautela[0],
+      message: 'Link de descautela gerado com sucesso',
+      novo_uuid: novoUuid
+    });
+  } catch (error) {
+    console.error('Erro ao descautelar:', error);
+    res.status(500).json({ error: 'Erro ao descautelar' });
+  }
+});
+
+// GET - Buscar histórico de cautela (com todas as assinaturas)
+router.get('/:id/historico', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const connection = getConnection();
+    
+    // Buscar cautela
+    const [cautelas] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ? OR uuid = ?',
+      [id, id]
+    );
+    
+    if (cautelas.length === 0) {
+      return res.status(404).json({ error: 'Cautela não encontrada' });
+    }
+    
+    const cautela = cautelas[0];
+    
+    // Buscar todas as assinaturas relacionadas
+    const [assinaturas] = await connection.execute(
+      `SELECT * FROM assinaturas 
+       WHERE cautela_id = ? 
+       ORDER BY data_assinatura ASC`,
+      [cautela.id]
+    );
+    
+    res.json({
+      cautela,
+      assinaturas,
+      total_assinaturas: assinaturas.length
+    });
+  } catch (error) {
+    console.error('Erro ao buscar histórico:', error);
+    res.status(500).json({ error: 'Erro ao buscar histórico' });
   }
 });
 
