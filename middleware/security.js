@@ -40,23 +40,34 @@ export const securityHeaders = helmet({
 });
 
 // Middleware para validar origem (CSRF protection)
+// IMPORTANTE: Não bloquear requisições OPTIONS (preflight CORS)
 export const validateOrigin = (req, res, next) => {
+  // Permitir sempre requisições OPTIONS (preflight CORS)
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+  
   const allowedOrigins = [
     process.env.FRONTEND_URL || 'http://localhost:5173',
     'https://cautela-front.vercel.app',
-    'https://cautela-frontend.vercel.app'
+    'https://cautela-frontend.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
   ];
   
   const origin = req.headers.origin;
   
-  if (!origin || !allowedOrigins.includes(origin)) {
-    // Permitir requisições sem origin (mobile apps, Postman em dev)
-    if (process.env.NODE_ENV === 'development' || !origin) {
-      return next();
-    }
+  // Permitir requisições sem origin (mobile apps, Postman, etc)
+  if (!origin) {
+    return next();
+  }
+  
+  // Em produção, validar origem; em desenvolvimento, permitir todas
+  if (process.env.NODE_ENV === 'production' && !allowedOrigins.includes(origin)) {
     return res.status(403).json({ 
       error: 'Origem não permitida',
-      code: 'INVALID_ORIGIN'
+      code: 'INVALID_ORIGIN',
+      origin: origin
     });
   }
   

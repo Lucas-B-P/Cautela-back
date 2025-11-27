@@ -37,7 +37,16 @@ async function migrateStatus() {
       })
       .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
 
-    console.log(`Executando ${statements.length} comandos de migração...\n`);
+    // IMPORTANTE: Atualizar dados existentes ANTES de alterar o ENUM
+    console.log('Atualizando status existentes antes de alterar o ENUM...');
+    try {
+      const [result] = await connection.query(`UPDATE cautelas SET status = 'cautelado' WHERE status = 'assinado'`);
+      console.log(`✓ ${result.affectedRows} registro(s) com status "assinado" atualizado(s) para "cautelado"`);
+    } catch (error) {
+      console.log('⚠ Erro ao atualizar status (pode não haver registros):', error.message);
+    }
+
+    console.log(`\nExecutando ${statements.length} comandos de migração...\n`);
 
     for (let i = 0; i < statements.length; i++) {
       const statement = statements[i];
@@ -51,24 +60,16 @@ async function migrateStatus() {
         } catch (error) {
           if (error.code === 'ER_DUP_FIELDNAME' || 
               error.code === 'ER_DUP_KEYNAME' ||
+              error.code === 'WARN_DATA_TRUNCATED' ||
               error.message.includes('Duplicate') ||
               error.message.includes('already exists')) {
-            console.log(`⚠ Alteração já aplicada, pulando comando ${i + 1}...\n`);
+            console.log(`⚠ Alteração já aplicada ou ignorada, pulando comando ${i + 1}...\n`);
           } else {
             console.error(`❌ Erro ao executar comando ${i + 1}:`, error.message);
             throw error;
           }
         }
       }
-    }
-
-    // Atualizar status existentes
-    console.log('Atualizando status existentes...');
-    try {
-      await connection.query(`UPDATE cautelas SET status = 'cautelado' WHERE status = 'assinado'`);
-      console.log('✓ Status "assinado" atualizado para "cautelado"');
-    } catch (error) {
-      console.log('⚠ Erro ao atualizar status (pode não haver registros):', error.message);
     }
 
     console.log('\n✅ Migração de status concluída com sucesso!');

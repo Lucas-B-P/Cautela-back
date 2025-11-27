@@ -15,11 +15,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware de Segurança
-app.use(securityHeaders);
-app.use(validateOrigin);
-
-// Middleware CORS
+// Middleware CORS - DEVE VIR ANTES DE validateOrigin para permitir preflight
 const corsOptions = {
   origin: function (origin, callback) {
     const allowedOrigins = [
@@ -36,15 +32,26 @@ const corsOptions = {
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      callback(null, true); // Permitir todas as origens em desenvolvimento
+      // Em produção, validar; em desenvolvimento, permitir todas
+      if (process.env.NODE_ENV === 'production') {
+        callback(new Error('Not allowed by CORS'));
+      } else {
+        callback(null, true);
+      }
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 app.use(cors(corsOptions));
+
+// Middleware de Segurança (após CORS para não interferir no preflight)
+app.use(securityHeaders);
+app.use(validateOrigin);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
