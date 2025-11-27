@@ -44,14 +44,6 @@ router.post('/login',
 
       const usuario = usuarios[0];
 
-      // Verificar se está bloqueado
-      if (usuario.bloqueado_ate && new Date(usuario.bloqueado_ate) > new Date()) {
-        return res.status(403).json({ 
-          error: 'Conta temporariamente bloqueada. Tente novamente mais tarde.',
-          code: 'ACCOUNT_LOCKED'
-        });
-      }
-
       // Verificar se está ativo
       if (!usuario.ativo) {
         return res.status(403).json({ 
@@ -64,39 +56,15 @@ router.post('/login',
       const senhaValida = await bcrypt.compare(password, usuario.password_hash);
       
       if (!senhaValida) {
-        // Incrementar tentativas de login
-        const novasTentativas = (usuario.tentativas_login || 0) + 1;
-        
-        // Bloquear após 5 tentativas por 30 minutos
-        if (novasTentativas >= 5) {
-          const bloqueadoAte = new Date();
-          bloqueadoAte.setMinutes(bloqueadoAte.getMinutes() + 30);
-          
-          await connection.execute(
-            'UPDATE usuarios SET tentativas_login = ?, bloqueado_ate = ? WHERE id = ?',
-            [novasTentativas, bloqueadoAte, usuario.id]
-          );
-          
-          return res.status(403).json({ 
-            error: 'Muitas tentativas falhas. Conta bloqueada por 30 minutos.',
-            code: 'ACCOUNT_LOCKED'
-          });
-        }
-        
-        await connection.execute(
-          'UPDATE usuarios SET tentativas_login = ? WHERE id = ?',
-          [novasTentativas, usuario.id]
-        );
-        
         return res.status(401).json({ 
           error: 'Credenciais inválidas',
           code: 'INVALID_CREDENTIALS'
         });
       }
 
-      // Login bem-sucedido - resetar tentativas
+      // Login bem-sucedido - atualizar último login
       await connection.execute(
-        'UPDATE usuarios SET tentativas_login = 0, bloqueado_ate = NULL, ultimo_login = NOW() WHERE id = ?',
+        'UPDATE usuarios SET ultimo_login = NOW() WHERE id = ?',
         [usuario.id]
       );
 
