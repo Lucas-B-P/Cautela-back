@@ -11,21 +11,38 @@ export const createConnection = async () => {
       return connection;
     }
 
-    connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      port: process.env.DB_PORT || 3306,
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'cautela_db',
+    // Obter configurações do banco de dados
+    const dbConfig = {
+      host: process.env.DB_HOST || process.env.MYSQL_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || process.env.MYSQL_PORT || '3306'),
+      user: process.env.DB_USER || process.env.MYSQL_USER || 'root',
+      password: process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || '',
+      database: process.env.DB_NAME || process.env.MYSQL_DATABASE || 'cautela_db',
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0
-    });
+    };
 
-    console.log('Conexão com o banco de dados estabelecida com sucesso!');
+    // Log de diagnóstico (sem mostrar senha)
+    console.log('Tentando conectar ao banco de dados...');
+    console.log(`Host: ${dbConfig.host}`);
+    console.log(`Port: ${dbConfig.port}`);
+    console.log(`User: ${dbConfig.user}`);
+    console.log(`Database: ${dbConfig.database}`);
+    console.log(`Password: ${dbConfig.password ? '***' : '(não configurada)'}`);
+
+    connection = await mysql.createConnection(dbConfig);
+
+    console.log('✅ Conexão com o banco de dados estabelecida com sucesso!');
     return connection;
   } catch (error) {
-    console.error('Erro ao conectar ao banco de dados:', error);
+    console.error('❌ Erro ao conectar ao banco de dados:', error.message);
+    console.error('Código do erro:', error.code);
+    console.error('Variáveis de ambiente disponíveis:');
+    console.error(`DB_HOST: ${process.env.DB_HOST || '(não definida)'}`);
+    console.error(`DB_PORT: ${process.env.DB_PORT || '(não definida)'}`);
+    console.error(`DB_USER: ${process.env.DB_USER || '(não definida)'}`);
+    console.error(`DB_NAME: ${process.env.DB_NAME || '(não definida)'}`);
     throw error;
   }
 };
