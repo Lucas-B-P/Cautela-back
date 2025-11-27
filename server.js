@@ -56,11 +56,95 @@ app.use('/api/auth', authRoutes);
 
 // Rotas públicas de cautela e assinatura (para acesso via link - SEM AUTENTICAÇÃO)
 // IMPORTANTE: Estas rotas devem vir ANTES das rotas protegidas
-app.get('/api/cautelas/:uuid', (req, res, next) => {
-  cautelaPublicRoutes(req, res, next);
+app.get('/api/cautelas/:uuid', async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const connection = getConnection();
+    
+    console.log('Buscando cautela pública por UUID:', uuid);
+    
+    const [rows] = await connection.execute(
+      'SELECT * FROM cautelas WHERE uuid = ?',
+      [uuid]
+    );
+    
+    if (rows.length === 0) {
+      console.log('Cautela não encontrada para UUID:', uuid);
+      return res.status(404).json({ error: 'Cautela não encontrada' });
+    }
+    
+    console.log('Cautela encontrada:', rows[0].id);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Erro ao buscar cautela pública:', error);
+    res.status(500).json({ error: 'Erro ao buscar cautela' });
+  }
 });
-app.post('/api/assinaturas/:uuid', (req, res, next) => {
-  assinaturaPublicRoutes(req, res, next);
+
+app.post('/api/assinaturas/:uuid', async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const { assinatura_base64, nome, cargo } = req.body;
+    
+    if (!assinatura_base64) {
+      return res.status(400).json({ error: 'Campo obrigatório: assinatura_base64' });
+    }
+
+    const connection = getConnection();
+    
+    const [cautelas] = await connection.execute(
+      'SELECT * FROM cautelas WHERE uuid = ?',
+      [uuid]
+    );
+    
+    if (cautelas.length === 0) {
+      return res.status(404).json({ error: 'Cautela não encontrada' });
+    }
+    
+    const cautela = cautelas[0];
+    
+    if (cautela.status !== 'pendente') {
+      return res.status(400).json({ error: 'Esta cautela já foi assinada ou cancelada' });
+    }
+
+    const [assinaturasExistentes] = await connection.execute(
+      'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
+      [cautela.id]
+    );
+    
+    const tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+
+    await connection.execute(
+      `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
+    );
+
+    if (tipoAssinatura === 'descautela') {
+      await connection.execute(
+        `UPDATE cautelas SET status = 'assinado', data_devolucao = NOW(), assinatura_base64 = ? WHERE id = ?`,
+        [assinatura_base64, cautela.id]
+      );
+    } else {
+      await connection.execute(
+        `UPDATE cautelas SET status = 'assinado', data_assinatura = NOW(), assinatura_base64 = ? WHERE id = ?`,
+        [assinatura_base64, cautela.id]
+      );
+    }
+
+    const [updatedCautela] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ?',
+      [cautela.id]
+    );
+
+    res.status(201).json({ 
+      ...updatedCautela[0],
+      message: 'Assinatura salva com sucesso' 
+    });
+  } catch (error) {
+    console.error('Erro ao criar assinatura:', error);
+    res.status(500).json({ error: 'Erro ao criar assinatura' });
+  }
 });
 
 // Rotas protegidas (requerem autenticação)
