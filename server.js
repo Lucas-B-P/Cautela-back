@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { createConnection, getConnection } from './db/connection.js';
 import authRoutes from './routes/authRoutes.js';
 import cautelaRoutes from './routes/cautelaRoutes.js';
+import cautelaPublicRoutes from './routes/cautelaPublicRoutes.js';
 import assinaturaRoutes from './routes/assinaturaRoutes.js';
 import assinaturaPublicRoutes from './routes/assinaturaPublicRoutes.js';
 import { securityHeaders, apiLimiter, validateOrigin } from './middleware/security.js';
@@ -53,8 +54,14 @@ app.use('/api', apiLimiter);
 // Rotas públicas (sem autenticação)
 app.use('/api/auth', authRoutes);
 
-// Rota pública de assinatura por UUID (qualquer um com o link pode assinar)
-app.use('/api/assinaturas', assinaturaPublicRoutes);
+// Rotas públicas de cautela e assinatura (para acesso via link - SEM AUTENTICAÇÃO)
+// IMPORTANTE: Estas rotas devem vir ANTES das rotas protegidas
+app.get('/api/cautelas/:uuid', (req, res, next) => {
+  cautelaPublicRoutes(req, res, next);
+});
+app.post('/api/assinaturas/:uuid', (req, res, next) => {
+  assinaturaPublicRoutes(req, res, next);
+});
 
 // Rotas protegidas (requerem autenticação)
 app.use('/api/cautelas', authenticateToken, cautelaRoutes);
