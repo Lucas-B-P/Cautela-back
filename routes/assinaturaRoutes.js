@@ -32,7 +32,74 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST - Criar nova assinatura
+// POST - Criar nova assinatura (por UUID da cautela)
+router.post('/:uuid', async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const { assinatura_base64, nome, cargo } = req.body;
+    
+    if (!assinatura_base64) {
+      return res.status(400).json({ error: 'Campo obrigatório: assinatura_base64' });
+    }
+
+    const connection = getConnection();
+    
+    // Buscar cautela por UUID
+    const [cautelas] = await connection.execute(
+      'SELECT * FROM cautelas WHERE uuid = ?',
+      [uuid]
+    );
+    
+    if (cautelas.length === 0) {
+      return res.status(404).json({ error: 'Cautela não encontrada' });
+    }
+    
+    const cautela = cautelas[0];
+    
+    if (cautela.status !== 'pendente') {
+      return res.status(400).json({ error: 'Esta cautela já foi assinada ou cancelada' });
+    }
+
+    // Criar assinatura
+    const [result] = await connection.execute(
+      `INSERT INTO assinaturas (
+        cautela_id, nome, cargo, assinatura_base64
+      ) VALUES (?, ?, ?, ?)`,
+      [
+        cautela.id,
+        nome || cautela.responsavel_nome || 'Responsável',
+        cargo || '',
+        assinatura_base64
+      ]
+    );
+
+    // Atualizar status da cautela e adicionar assinatura
+    await connection.execute(
+      `UPDATE cautelas 
+       SET status = 'assinado', 
+           data_assinatura = NOW(),
+           assinatura_base64 = ?
+       WHERE id = ?`,
+      [assinatura_base64, cautela.id]
+    );
+
+    // Buscar cautela atualizada
+    const [updatedCautela] = await connection.execute(
+      'SELECT * FROM cautelas WHERE id = ?',
+      [cautela.id]
+    );
+
+    res.status(201).json({ 
+      ...updatedCautela[0],
+      message: 'Assinatura salva com sucesso' 
+    });
+  } catch (error) {
+    console.error('Erro ao criar assinatura:', error);
+    res.status(500).json({ error: 'Erro ao criar assinatura' });
+  }
+});
+
+// POST - Criar nova assinatura (rota genérica)
 router.post('/', async (req, res) => {
   try {
     const { nome, cargo, assinatura_base64, cautela_id } = req.body;
