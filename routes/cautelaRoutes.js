@@ -151,22 +151,31 @@ router.post('/', async (req, res) => {
 router.post('/:id/descautelar', async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('Descautelar - ID recebido:', id);
+    console.log('Descautelar - ID recebido:', id, 'Tipo:', typeof id);
     
     const connection = getConnection();
     
-    // Buscar cautela - tentar primeiro por ID numérico, depois por UUID
-    let [cautelas] = await connection.execute(
-      'SELECT * FROM cautelas WHERE id = ?',
-      [id]
-    );
+    // Converter ID para número se possível
+    const idNumero = parseInt(id);
+    const isNumero = !isNaN(idNumero) && idNumero.toString() === id;
     
-    // Se não encontrou por ID, tentar por UUID
-    if (cautelas.length === 0) {
-      console.log('Não encontrado por ID, tentando por UUID...');
+    // Buscar cautela - tentar primeiro por ID numérico, depois por UUID
+    let [cautelas] = [];
+    
+    if (isNumero) {
+      console.log('Buscando por ID numérico:', idNumero);
       [cautelas] = await connection.execute(
-        'SELECT * FROM cautelas WHERE uuid = ?',
-        [id]
+        'SELECT * FROM cautelas WHERE id = ?',
+        [idNumero]
+      );
+    }
+    
+    // Se não encontrou por ID numérico, tentar por UUID ou ID como string
+    if (cautelas.length === 0) {
+      console.log('Não encontrado por ID numérico, tentando por UUID/ID string...');
+      [cautelas] = await connection.execute(
+        'SELECT * FROM cautelas WHERE uuid = ? OR id = ?',
+        [id, id]
       );
     }
     
