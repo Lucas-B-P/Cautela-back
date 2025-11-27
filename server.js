@@ -118,12 +118,30 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
     }
 
     // Determinar tipo de assinatura: se já tem assinatura de cautela, esta é descautela
-    const [assinaturasExistentes] = await connection.execute(
-      'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
-      [cautela.id]
-    );
+    let assinaturasExistentes = [];
+    let tipoAssinatura = 'cautela';
     
-    const tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+    try {
+      // Tentar verificar com tipo_assinatura
+      [assinaturasExistentes] = await connection.execute(
+        'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
+        [cautela.id]
+      );
+      tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+    } catch (queryError) {
+      // Se a coluna não existir, verificar apenas por cautela_id
+      if (queryError.code === 'ER_BAD_FIELD_ERROR' && queryError.message.includes('tipo_assinatura')) {
+        console.warn('Coluna tipo_assinatura não existe na query, verificando apenas por cautela_id...');
+        [assinaturasExistentes] = await connection.execute(
+          'SELECT * FROM assinaturas WHERE cautela_id = ?',
+          [cautela.id]
+        );
+        // Se já tem alguma assinatura, assume que é descautela
+        tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+      } else {
+        throw queryError;
+      }
+    }
 
     // Criar assinatura
     // Verificar se a coluna tipo_assinatura existe
@@ -182,9 +200,26 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
   } catch (error) {
     console.error('Erro ao criar assinatura:', error);
     console.error('Stack trace:', error.stack);
-    res.status(500).json({ 
-      error: 'Erro ao criar assinatura',
+    console.error('Error details:', {
       message: error.message,
+      code: error.code,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage,
+      sql: error.sql
+    });
+    
+    // Retornar mensagem de erro mais amigável
+    let errorMessage = 'Erro ao criar assinatura';
+    if (error.code === 'ER_BAD_FIELD_ERROR') {
+      errorMessage = 'Erro no banco de dados: coluna não encontrada. Execute as migrações.';
+    } else if (error.code === 'ER_NO_SUCH_TABLE') {
+      errorMessage = 'Erro no banco de dados: tabela não encontrada. Execute as migrações.';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.status(500).json({ 
+      error: errorMessage,
       code: error.code,
       sqlState: error.sqlState
     });
