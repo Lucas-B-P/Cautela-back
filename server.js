@@ -117,31 +117,50 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
       });
     }
 
-    // Determinar tipo de assinatura: se já tem assinatura de cautela, esta é descautela
+    // Determinar tipo de assinatura: 
+    // - Se NÃO existe nenhuma assinatura → é "cautela" (primeira assinatura)
+    // - Se JÁ existe uma assinatura de tipo "cautela" → é "descautela" (devolução)
     let assinaturasExistentes = [];
-    let tipoAssinatura = 'cautela';
+    let tipoAssinatura = 'cautela'; // Por padrão, sempre começa como cautela
     
     try {
-      // Tentar verificar com tipo_assinatura
+      // Primeiro, verificar se existe alguma assinatura para esta cautela
       [assinaturasExistentes] = await connection.execute(
-        'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
+        'SELECT * FROM assinaturas WHERE cautela_id = ?',
         [cautela.id]
       );
-      tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
-    } catch (queryError) {
-      // Se a coluna não existir, verificar apenas por cautela_id
-      if (queryError.code === 'ER_BAD_FIELD_ERROR' && queryError.message.includes('tipo_assinatura')) {
-        console.warn('Coluna tipo_assinatura não existe na query, verificando apenas por cautela_id...');
-        [assinaturasExistentes] = await connection.execute(
-          'SELECT * FROM assinaturas WHERE cautela_id = ?',
-          [cautela.id]
-        );
-        // Se já tem alguma assinatura, assume que é descautela
-        tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+      
+      // Se não existe nenhuma assinatura, é a primeira (cautela)
+      if (assinaturasExistentes.length === 0) {
+        tipoAssinatura = 'cautela';
       } else {
-        throw queryError;
+        // Se já existe assinatura, verificar se alguma é do tipo "cautela"
+        try {
+          const [cautelasExistentes] = await connection.execute(
+            'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
+            [cautela.id]
+          );
+          // Se já tem assinatura de cautela, esta nova é descautela
+          tipoAssinatura = cautelasExistentes.length > 0 ? 'descautela' : 'cautela';
+        } catch (queryError) {
+          // Se a coluna tipo_assinatura não existir, verificar apenas quantidade
+          if (queryError.code === 'ER_BAD_FIELD_ERROR' && queryError.message.includes('tipo_assinatura')) {
+            console.warn('Coluna tipo_assinatura não existe, usando lógica de contagem...');
+            // Se já tem pelo menos uma assinatura, assume que é descautela
+            tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+          } else {
+            // Se já tem assinaturas, assume que é descautela (mais seguro)
+            tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+          }
+        }
       }
+    } catch (queryError) {
+      console.error('Erro ao verificar assinaturas existentes:', queryError);
+      // Em caso de erro, sempre assume que é cautela (primeira assinatura)
+      tipoAssinatura = 'cautela';
     }
+    
+    console.log(`Tipo de assinatura determinado: ${tipoAssinatura} (${assinaturasExistentes.length} assinatura(s) existente(s))`);
 
     // Criar assinatura
     // Verificar se a coluna tipo_assinatura existe

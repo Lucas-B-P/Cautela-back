@@ -31,13 +31,50 @@ router.post('/:uuid', async (req, res) => {
       return res.status(400).json({ error: 'Esta cautela já foi assinada ou cancelada' });
     }
 
-    // Determinar tipo de assinatura baseado no status atual
-    const [assinaturasExistentes] = await connection.execute(
-      'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
-      [cautela.id]
-    );
+    // Determinar tipo de assinatura: 
+    // - Se NÃO existe nenhuma assinatura → é "cautela" (primeira assinatura)
+    // - Se JÁ existe uma assinatura de tipo "cautela" → é "descautela" (devolução)
+    let assinaturasExistentes = [];
+    let tipoAssinatura = 'cautela'; // Por padrão, sempre começa como cautela
     
-    const tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+    try {
+      // Primeiro, verificar se existe alguma assinatura para esta cautela
+      [assinaturasExistentes] = await connection.execute(
+        'SELECT * FROM assinaturas WHERE cautela_id = ?',
+        [cautela.id]
+      );
+      
+      // Se não existe nenhuma assinatura, é a primeira (cautela)
+      if (assinaturasExistentes.length === 0) {
+        tipoAssinatura = 'cautela';
+      } else {
+        // Se já existe assinatura, verificar se alguma é do tipo "cautela"
+        try {
+          const [cautelasExistentes] = await connection.execute(
+            'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
+            [cautela.id]
+          );
+          // Se já tem assinatura de cautela, esta nova é descautela
+          tipoAssinatura = cautelasExistentes.length > 0 ? 'descautela' : 'cautela';
+        } catch (queryError) {
+          // Se a coluna tipo_assinatura não existir, verificar apenas quantidade
+          if (queryError.code === 'ER_BAD_FIELD_ERROR' && queryError.message.includes('tipo_assinatura')) {
+            console.warn('Coluna tipo_assinatura não existe, usando lógica de contagem...');
+            // Se já tem pelo menos uma assinatura, assume que é descautela
+            tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+          } else {
+            // Se já tem assinaturas, assume que é descautela (mais seguro)
+            tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
+          }
+        }
+      }
+    } catch (queryError) {
+      console.error('Erro ao verificar assinaturas existentes:', queryError);
+      // Em caso de erro, sempre assume que é cautela (primeira assinatura)
+      tipoAssinatura = 'cautela';
+    }
+    
+    console.log(`Tipo de assinatura determinado: ${tipoAssinatura} (${assinaturasExistentes.length} assinatura(s) existente(s))`);
 
     // Criar assinatura
     const [result] = await connection.execute(
