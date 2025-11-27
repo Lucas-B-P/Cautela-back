@@ -15,25 +15,29 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware CORS - DEVE VIR ANTES DE validateOrigin para permitir preflight
+// Middleware CORS - DEVE VIR ANTES DE TUDO para permitir preflight
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  'https://cautela-front.vercel.app',
+  'https://cautela-frontend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000'
+];
+
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      process.env.FRONTEND_URL || 'http://localhost:5173',
-      'https://cautela-front.vercel.app',
-      'https://cautela-frontend.vercel.app',
-      'http://localhost:5173',
-      'http://localhost:3000'
-    ];
-    
     // Permitir requisições sem origin (mobile apps, Postman, etc)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      return callback(null, true);
+    }
     
+    // Verificar se a origem está na lista de permitidas
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      // Em produção, validar; em desenvolvimento, permitir todas
+      // Em produção, bloquear; em desenvolvimento, permitir todas
       if (process.env.NODE_ENV === 'production') {
+        console.warn(`CORS: Origem não permitida: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       } else {
         callback(null, true);
@@ -42,15 +46,24 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Request-Method', 'Access-Control-Request-Headers'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   preflightContinue: false,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204,
+  maxAge: 86400 // Cache preflight por 24 horas
 };
+
+// Aplicar CORS antes de qualquer outro middleware
 app.use(cors(corsOptions));
 
+// Handler manual para OPTIONS (preflight) caso necessário
+app.options('*', cors(corsOptions));
+
 // Middleware de Segurança (após CORS para não interferir no preflight)
+// IMPORTANTE: Helmet pode interferir com CORS, então vem depois
 app.use(securityHeaders);
+
+// validateOrigin vem depois do CORS, mas permite OPTIONS
 app.use(validateOrigin);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

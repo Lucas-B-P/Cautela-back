@@ -27,6 +27,7 @@ export const apiLimiter = rateLimit({
 });
 
 // Configuração do Helmet para segurança HTTP
+// IMPORTANTE: Desabilitar políticas que interferem com CORS
 export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
@@ -37,6 +38,8 @@ export const securityHeaders = helmet({
     },
   },
   crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Permitir recursos cross-origin
+  crossOriginOpenerPolicy: false, // Não bloquear popups/novas janelas
 });
 
 // Middleware para validar origem (CSRF protection)
