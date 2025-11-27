@@ -86,7 +86,7 @@ Você pode modificar o `railway.json` para executar automaticamente:
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm run migrate && npm run create-admin && npm start",
+    "startCommand": "npm run migrate ; npm run create-admin ; npm start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
