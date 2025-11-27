@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS cautelas (
     uuid VARCHAR(36) UNIQUE NOT NULL,
     material VARCHAR(255) NOT NULL,
     descricao TEXT,
+    tipo_material ENUM('consumivel', 'permanente') DEFAULT 'permanente',
     quantidade INT NOT NULL DEFAULT 1,
     responsavel VARCHAR(255) NOT NULL,
     responsavel_nome VARCHAR(255),
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS cautelas (
 CREATE TABLE IF NOT EXISTS assinaturas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     cautela_id INT,
+    tipo_assinatura ENUM('cautela', 'descautela') DEFAULT 'cautela',
     uuid VARCHAR(36) UNIQUE,
     nome VARCHAR(255) NOT NULL,
     cargo VARCHAR(255),
@@ -34,6 +36,7 @@ CREATE TABLE IF NOT EXISTS assinaturas (
     data_assinatura DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cautela_id) REFERENCES cautelas(id) ON DELETE CASCADE,
     INDEX idx_cautela_id (cautela_id),
-    INDEX idx_uuid (uuid)
+    INDEX idx_uuid (uuid),
+    INDEX idx_tipo_assinatura (tipo_assinatura)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
