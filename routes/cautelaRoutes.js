@@ -195,10 +195,29 @@ router.post('/:id/descautelar', async (req, res) => {
       });
     }
     
-    // Verificar se está assinada
-    if (cautela.status !== 'assinado') {
+    // Verificar se está cautelada (não pode descautelar se não foi cautelada)
+    if (cautela.status !== 'cautelado') {
       return res.status(400).json({ 
-        error: 'A cautela precisa estar assinada para ser descautelada' 
+        error: `A cautela precisa estar cautelada para ser descautelada. Status atual: ${cautela.status}` 
+      });
+    }
+    
+    // Verificar se já foi descautelada
+    if (cautela.status === 'descautelado') {
+      return res.status(400).json({ 
+        error: 'Esta cautela já foi descautelada' 
+      });
+    }
+    
+    // Verificar se já existe assinatura de descautela
+    const [descautelasExistentes] = await connection.execute(
+      'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "descautela"',
+      [cautela.id]
+    );
+    
+    if (descautelasExistentes.length > 0) {
+      return res.status(400).json({ 
+        error: 'Esta cautela já possui uma descautela pendente de assinatura' 
       });
     }
     
@@ -206,13 +225,12 @@ router.post('/:id/descautelar', async (req, res) => {
     const novoUuid = uuidv4();
     const link_descautela = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/assinar/${novoUuid}`;
     
-    // Atualizar status para pendente, criar novo link E atualizar o UUID
+    // Atualizar status para pendente (aguardando assinatura de descautela), criar novo link E atualizar o UUID
     await connection.execute(
       `UPDATE cautelas 
        SET status = 'pendente',
            uuid = ?,
            link_assinatura = ?,
-           data_devolucao = NULL,
            assinatura_base64 = NULL
        WHERE id = ?`,
       [novoUuid, link_descautela, cautela.id]

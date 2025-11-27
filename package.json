@@ -10,6 +10,7 @@
     "init-db": "node db/init-db.js",
     "verify-db": "node db/verify-db.js",
     "migrate": "node db/migrate.js",
+    "migrate-status": "node db/migrate_status.js",
     "create-admin": "node db/create-admin.js",
     "setup": "node db/migrate.js && node db/create-admin.js",
     "postinstall": "echo 'Dependências instaladas'"

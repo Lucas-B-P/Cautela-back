@@ -103,10 +103,14 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
     
     const cautela = cautelas[0];
     
+    // Verificar se pode assinar (deve estar pendente)
     if (cautela.status !== 'pendente') {
-      return res.status(400).json({ error: 'Esta cautela já foi assinada ou cancelada' });
+      return res.status(400).json({ 
+        error: `Esta cautela não pode ser assinada. Status atual: ${cautela.status}` 
+      });
     }
 
+    // Determinar tipo de assinatura: se já tem assinatura de cautela, esta é descautela
     const [assinaturasExistentes] = await connection.execute(
       'SELECT * FROM assinaturas WHERE cautela_id = ? AND tipo_assinatura = "cautela"',
       [cautela.id]
@@ -114,20 +118,32 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
     
     const tipoAssinatura = assinaturasExistentes.length > 0 ? 'descautela' : 'cautela';
 
+    // Criar assinatura
     await connection.execute(
       `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64) 
        VALUES (?, ?, ?, ?, ?)`,
       [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
     );
 
+    // Atualizar status da cautela baseado no tipo de assinatura
     if (tipoAssinatura === 'descautela') {
+      // Se é descautela, mudar status para descautelado
       await connection.execute(
-        `UPDATE cautelas SET status = 'assinado', data_devolucao = NOW(), assinatura_base64 = ? WHERE id = ?`,
+        `UPDATE cautelas 
+         SET status = 'descautelado', 
+             data_devolucao = NOW(), 
+             assinatura_base64 = ? 
+         WHERE id = ?`,
         [assinatura_base64, cautela.id]
       );
     } else {
+      // Se é cautela inicial, mudar status para cautelado
       await connection.execute(
-        `UPDATE cautelas SET status = 'assinado', data_assinatura = NOW(), assinatura_base64 = ? WHERE id = ?`,
+        `UPDATE cautelas 
+         SET status = 'cautelado', 
+             data_assinatura = NOW(), 
+             assinatura_base64 = ? 
+         WHERE id = ?`,
         [assinatura_base64, cautela.id]
       );
     }

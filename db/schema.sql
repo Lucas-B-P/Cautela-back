@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS cautelas (
     responsavel VARCHAR(255) NOT NULL,
     responsavel_nome VARCHAR(255),
     responsavel_email VARCHAR(255),
-    status ENUM('pendente', 'assinado', 'cancelado') DEFAULT 'pendente',
+    status ENUM('pendente', 'cautelado', 'descautelado', 'cancelado') DEFAULT 'pendente',
     data_retirada DATETIME,
     data_devolucao DATETIME,
     data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,

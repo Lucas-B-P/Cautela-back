@@ -55,18 +55,20 @@ router.post('/:uuid', async (req, res) => {
 
     // Atualizar status da cautela
     if (tipoAssinatura === 'descautela') {
+      // Se é descautela, mudar status para descautelado
       await connection.execute(
         `UPDATE cautelas 
-         SET status = 'assinado', 
+         SET status = 'descautelado', 
              data_devolucao = NOW(),
              assinatura_base64 = ?
          WHERE id = ?`,
         [assinatura_base64, cautela.id]
       );
     } else {
+      // Se é cautela inicial, mudar status para cautelado
       await connection.execute(
         `UPDATE cautelas 
-         SET status = 'assinado', 
+         SET status = 'cautelado', 
              data_assinatura = NOW(),
              assinatura_base64 = ?
          WHERE id = ?`,
