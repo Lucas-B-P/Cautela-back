@@ -37,7 +37,10 @@ export const requireAdmin = async (req, res, next) => {
     }
 
     // Verificar se é administrador
-    if (usuario.role !== 'admin') {
+    // Se role for NULL ou não for 'admin', negar acesso
+    // Usar COALESCE para tratar NULL como 'user'
+    const userRole = usuario.role || 'user';
+    if (userRole !== 'admin') {
       return res.status(403).json({ 
         error: 'Acesso negado. Apenas administradores podem realizar esta ação.',
         code: 'FORBIDDEN'
