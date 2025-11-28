@@ -52,6 +52,12 @@ ADMIN_NAME=Administrador
 # Executar migração do banco (adicionar campos tipo_material e tipo_assinatura)
 npm run migrate
 
+# Executar migração de status (atualizar ENUM de status)
+npm run migrate-status
+
+# Executar migração de usuários (adicionar campo role e campos de descautela)
+npm run migrate-users
+
 # Criar usuário administrador
 npm run create-admin
 ```
@@ -70,8 +76,11 @@ railway login
 # Conectar ao projeto
 railway link
 
-# Executar comandos
+# Executar comandos (execute no diretório do backend!)
+cd Cautela-back
 railway run npm run migrate
+railway run npm run migrate-status
+railway run npm run migrate-users
 railway run npm run create-admin
 ```
 
@@ -86,7 +95,7 @@ Você pode modificar o `railway.json` para executar automaticamente:
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "npm run migrate ; npm run create-admin ; npm start",
+    "startCommand": "npm run migrate && npm run migrate-status && npm run migrate-users && npm run create-admin && npm start",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }
