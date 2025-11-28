@@ -7,6 +7,7 @@ import cautelaRoutes from './routes/cautelaRoutes.js';
 import cautelaPublicRoutes from './routes/cautelaPublicRoutes.js';
 import assinaturaRoutes from './routes/assinaturaRoutes.js';
 import assinaturaPublicRoutes from './routes/assinaturaPublicRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import { securityHeaders, apiLimiter, validateOrigin } from './middleware/security.js';
 import { authenticateToken } from './middleware/auth.js';
 
@@ -261,6 +262,7 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
 // Rotas protegidas (requerem autenticação)
 app.use('/api/cautelas', authenticateToken, cautelaRoutes);
 app.use('/api/assinaturas', authenticateToken, assinaturaRoutes);
+app.use('/api/users', userRoutes); // Já inclui authenticateToken e requireAdmin
 
 // Rota de health check (pública)
 app.get('/api/health', async (req, res) => {

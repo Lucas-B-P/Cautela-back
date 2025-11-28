@@ -221,19 +221,38 @@ router.post('/:id/descautelar', async (req, res) => {
       });
     }
     
+    // Obter informações do usuário que está emitindo a descautela
+    let emitidoPorUsuarioId = null;
+    let emitidoPorNome = null;
+    
+    if (req.user && req.user.id) {
+      emitidoPorUsuarioId = req.user.id;
+      // Buscar nome do usuário
+      const [usuarios] = await connection.execute(
+        'SELECT username, nome_completo FROM usuarios WHERE id = ?',
+        [req.user.id]
+      );
+      if (usuarios.length > 0) {
+        emitidoPorNome = usuarios[0].nome_completo || usuarios[0].username;
+      }
+    }
+    
     // Criar novo UUID para a descautela
     const novoUuid = uuidv4();
     const link_descautela = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/assinar/${novoUuid}`;
     
     // Atualizar status para pendente (aguardando assinatura de descautela), criar novo link E atualizar o UUID
+    // Registrar quem emitiu o link de descautela
     await connection.execute(
       `UPDATE cautelas 
        SET status = 'pendente',
            uuid = ?,
            link_assinatura = ?,
-           assinatura_base64 = NULL
+           assinatura_base64 = NULL,
+           emitido_por_usuario_id = ?,
+           emitido_por_nome = ?
        WHERE id = ?`,
-      [novoUuid, link_descautela, cautela.id]
+      [novoUuid, link_descautela, emitidoPorUsuarioId, emitidoPorNome, cautela.id]
     );
     
     // Buscar cautela atualizada

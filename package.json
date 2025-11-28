@@ -11,6 +11,7 @@
     "verify-db": "node db/verify-db.js",
     "migrate": "node db/migrate.js",
     "migrate-status": "node db/migrate_status.js",
+    "migrate-users": "node db/migrate_users.js",
     "check-schema": "node db/check-schema.js",
     "create-admin": "node db/create-admin.js",
     "setup": "node db/migrate.js && node db/create-admin.js",
