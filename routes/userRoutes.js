@@ -16,7 +16,9 @@ router.get('/', async (req, res) => {
   try {
     const connection = getConnection();
     const [usuarios] = await connection.execute(
-      `SELECT id, username, email, nome_completo, role, ativo, 
+      `SELECT id, username, email, nome_completo, 
+              COALESCE(role, 'user') as role, 
+              COALESCE(ativo, 1) as ativo, 
               ultimo_login, data_criacao, data_atualizacao
        FROM usuarios 
        ORDER BY data_criacao DESC`
