@@ -105,7 +105,7 @@ app.get('/api/cautelas/:uuid', async (req, res) => {
 app.post('/api/assinaturas/:uuid', async (req, res) => {
   try {
     const { uuid } = req.params;
-    const { assinatura_base64, nome, cargo } = req.body;
+    const { assinatura_base64, foto_base64, nome, cargo } = req.body;
     
     if (!assinatura_base64) {
       return res.status(400).json({ error: 'Campo obrigatório: assinatura_base64' });
@@ -180,19 +180,43 @@ app.post('/api/assinaturas/:uuid', async (req, res) => {
     // Verificar se a coluna tipo_assinatura existe
     try {
       await connection.execute(
-        `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
+        `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64, foto_base64) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64, foto_base64 || null]
       );
     } catch (insertError) {
       // Se a coluna não existir, tentar inserir sem ela (fallback)
-      if (insertError.code === 'ER_BAD_FIELD_ERROR' && insertError.message.includes('tipo_assinatura')) {
-        console.warn('Coluna tipo_assinatura não existe, inserindo sem ela...');
-        await connection.execute(
-          `INSERT INTO assinaturas (cautela_id, nome, cargo, assinatura_base64) 
-           VALUES (?, ?, ?, ?)`,
-          [cautela.id, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
-        );
+      if (insertError.code === 'ER_BAD_FIELD_ERROR') {
+        if (insertError.message.includes('tipo_assinatura')) {
+          console.warn('Coluna tipo_assinatura não existe, inserindo sem ela...');
+          try {
+            await connection.execute(
+              `INSERT INTO assinaturas (cautela_id, nome, cargo, assinatura_base64, foto_base64) 
+               VALUES (?, ?, ?, ?, ?)`,
+              [cautela.id, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64, foto_base64 || null]
+            );
+          } catch (fotoError) {
+            if (fotoError.message.includes('foto_base64')) {
+              console.warn('Coluna foto_base64 não existe, inserindo sem ela...');
+              await connection.execute(
+                `INSERT INTO assinaturas (cautela_id, nome, cargo, assinatura_base64) 
+                 VALUES (?, ?, ?, ?)`,
+                [cautela.id, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
+              );
+            } else {
+              throw fotoError;
+            }
+          }
+        } else if (insertError.message.includes('foto_base64')) {
+          console.warn('Coluna foto_base64 não existe, inserindo sem ela...');
+          await connection.execute(
+            `INSERT INTO assinaturas (cautela_id, tipo_assinatura, nome, cargo, assinatura_base64) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [cautela.id, tipoAssinatura, nome || cautela.responsavel_nome || 'Responsável', cargo || '', assinatura_base64]
+          );
+        } else {
+          throw insertError;
+        }
       } else {
         throw insertError;
       }

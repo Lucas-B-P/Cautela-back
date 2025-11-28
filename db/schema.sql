@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS assinaturas (
     nome VARCHAR(255) NOT NULL,
     cargo VARCHAR(255),
     assinatura_base64 LONGTEXT NOT NULL,
+    foto_base64 LONGTEXT NULL,
     data_assinatura DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (cautela_id) REFERENCES cautelas(id) ON DELETE CASCADE,
     INDEX idx_cautela_id (cautela_id),

@@ -12,6 +12,7 @@
     "migrate": "node db/migrate.js",
     "migrate-status": "node db/migrate_status.js",
     "migrate-users": "node db/migrate_users.js",
+    "migrate-foto": "node db/migrate_foto.js",
     "update-admin-role": "node db/update-admin-role.js",
     "check-schema": "node db/check-schema.js",
     "create-admin": "node db/create-admin.js",

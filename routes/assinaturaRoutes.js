@@ -36,7 +36,7 @@ router.get('/:id', async (req, res) => {
 router.post('/:uuid', async (req, res) => {
   try {
     const { uuid } = req.params;
-    const { assinatura_base64, nome, cargo } = req.body;
+    const { assinatura_base64, foto_base64, nome, cargo } = req.body;
     
     if (!assinatura_base64) {
       return res.status(400).json({ error: 'Campo obrigatório: assinatura_base64' });
@@ -108,14 +108,15 @@ router.post('/:uuid', async (req, res) => {
     // Criar assinatura
     const [result] = await connection.execute(
       `INSERT INTO assinaturas (
-        cautela_id, tipo_assinatura, nome, cargo, assinatura_base64
-      ) VALUES (?, ?, ?, ?, ?)`,
+        cautela_id, tipo_assinatura, nome, cargo, assinatura_base64, foto_base64
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
       [
         cautela.id,
         tipoAssinatura,
         nome || cautela.responsavel_nome || 'Responsável',
         cargo || '',
-        assinatura_base64
+        assinatura_base64,
+        foto_base64 || null
       ]
     );
 
